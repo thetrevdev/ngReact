@@ -20,7 +20,6 @@
     root.ngReact = factory(root.React, root.ReactDOM, root.angular);
   }
 }(this, function ngReact(React, ReactDOM, angular) {
-  'use strict';
 
   // get a react component from name (components can be an angular injectable e.g. value, factory or
   // available on window
@@ -176,6 +175,24 @@
     return customWatchDepth || defaultWatch;
   }
 
+  function withChildren(children) {
+    return class extends React.Component {
+      constructor(props) {
+        super(props);
+      }
+      componentDidMount() {
+        var el = ReactDOM.findDOMNode(this);
+        ReactDOM.unmountComponentAtNode(el);
+        angular.element(el).after(children);
+        el.remove();
+      }
+
+      render() {
+        return <div />;
+      }
+    };
+  }
+
   // # reactComponent
   // Directive that allows React components to be used in Angular templates.
   //
@@ -198,12 +215,15 @@
     return {
       restrict: 'E',
       replace: true,
-      link: function(scope, elem, attrs) {
+      transclude: true,
+      link: function(scope, elem, attrs, ctrl, transcludeFn) {
         var reactComponent = getReactComponent(attrs.name, $injector);
+        var ChildrenComponent = withChildren(transcludeFn());
 
         var renderMyComponent = function() {
           var scopeProps = scope.$eval(attrs.props);
           var props = applyFunctions(scopeProps, scope);
+          props.children = React.createElement(ChildrenComponent, {}, null);
 
           renderComponent(reactComponent, props, scope, elem);
         };
@@ -258,8 +278,10 @@
       var directive = {
         restrict: 'E',
         replace: true,
-        link: function(scope, elem, attrs) {
+        transclude: true,
+        link: function(scope, elem, attrs, ctrl, transcludeFn) {
           var reactComponent = getReactComponent(reactComponentName, $injector);
+          var ChildrenComponent = withChildren(transcludeFn());
 
           // if props is not defined, fall back to use the React component's propTypes if present
           props = props || Object.keys(reactComponent.propTypes || {});
@@ -281,6 +303,7 @@
             });
             scopeProps = applyFunctions(scopeProps, scope, config);
             scopeProps = angular.extend({}, scopeProps, injectableProps);
+            scopeProps.children = React.createElement(ChildrenComponent, {}, null);
             renderComponent(reactComponent, scopeProps, scope, elem);
           };
 
